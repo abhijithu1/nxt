@@ -48,9 +48,7 @@ const columns = [
     accessor: "action",
   },
 ];
-
-const StudentListPage = () => {
-  const renderRow = (item: Student) => (
+ const renderRow = (item: Student) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
@@ -89,6 +87,8 @@ const StudentListPage = () => {
       </td>
     </tr>
   );
+const StudentListPage = async () => {
+ 
 
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">

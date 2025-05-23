@@ -121,8 +121,11 @@ const TeacherListPage = async ({
           query.lessons={
             some:{
               classId: parseInt(value)
-            }
-          }
+            },
+          };
+          break;
+          case "search":
+            query.name = {contains:value,mode:"insensitive"}
       }
     }
     }
