@@ -2,9 +2,10 @@ import FormModal from "@/components/FormModal";
 import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
-import { examsData, role } from "@/lib/data";
 import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
+import { getUserId } from "@/lib/utils";
+import { auth } from "@clerk/nextjs/server";
 import { Class, Exam, Prisma, Subject, Teacher } from "@prisma/client";
 import Image from "next/image";
 
@@ -14,31 +15,44 @@ type ExamList = Exam & {lesson:{
   teacher: Teacher;
 }}
 
-const columns = [
-  {
-    header: "Subject Name",
-    accessor: "name",
-  },
-  {
-    header: "Class",
-    accessor: "class",
-  },
-  {
-    header: "Teacher",
-    accessor: "teacher",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Date",
-    accessor: "date",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Actions",
-    accessor: "action",
-  },
-];
-  const renderRow = (item: ExamList) => (
+
+
+const ExamListPage = async ({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | undefined };
+}) => {
+  const { sessionClaims } = await auth();
+  const role = (sessionClaims?.metadata as {role?:string})?.role;
+  console.log(searchParams)
+  const {page, ...queryParams} = searchParams
+  const columns = [
+    {
+      header: "Subject Name",
+      accessor: "name",
+    },
+    {
+      header: "Class",
+      accessor: "class",
+    },
+    {
+      header: "Teacher",
+      accessor: "teacher",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Date",
+      accessor: "date",
+      className: "hidden md:table-cell",
+    },
+    ...(role === "admin" ||role === "teacher"? [{
+      header: "Actions",
+      accessor: "action",
+    }] : []),
+  ];
+
+  const p = page ? parseInt(page) : 1;
+ const renderRow =  (item: ExamList) =>  (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
@@ -59,44 +73,77 @@ const columns = [
       </td>
     </tr>
   );
-
-const ExamListPage = async ({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | undefined };
-}) => {
-  console.log(searchParams)
-  const {page, ...queryParams} = searchParams
-
-  const p = page ? parseInt(page) : 1;
-
   //url params condition
 
   const query: Prisma.ExamWhereInput = {}
+  query.lesson = {};
 
   if(queryParams){
     for(const [key,value] of Object.entries(queryParams)){
       if(value != undefined){
       switch(key){
         case "classId":
-          query.lesson ={classId : parseInt(value)};
+          query.lesson.classId = parseInt(value);
         case "teacherId":
-          query.lesson = {teacherId:value};
+          query.lesson.teacherId=value;
           break;
           case "search":
-            query.lesson = {
-              subject: {
+            query.lesson.subject= {
                 name: {
                   contains:value,
                   mode: "insensitive"
                 }
-              }
+              
             }
             break;
             default:break;
       }
     }
     }
+  }
+
+  //role conditions
+
+  switch (role) {
+    case "admin":
+      
+      break;
+      case "teacher":
+        const teacherId = await getUserId();
+        if(teacherId){
+          query.lesson.teacherId = teacherId;
+        }
+      
+      break;
+      case "student":
+        const studentId = await getUserId();
+        if(studentId){
+          query.lesson.class = {
+            students:{
+              some:{
+                id: studentId
+              }
+            }
+          }
+        }
+      
+      break;
+
+      case "parent":
+        const parentId = await getUserId();
+        if(parentId){
+          query.lesson.class = {
+            students:{
+              some:{
+                parentId: parentId
+              }
+            }
+          }
+        }
+      
+      break;
+    default:
+      break;
   }
 
   const [data, count] = await prisma.$transaction([

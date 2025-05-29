@@ -2,14 +2,26 @@ import FormModal from "@/components/FormModal";
 import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
-import { classesData, role } from "@/lib/data";
 import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
+import { getRole } from "@/lib/utils";
 import { Class, Prisma, Teacher } from "@prisma/client";
 import Image from "next/image";
 
 type ClassList = Class & {supervisor: Teacher};
 
+
+ 
+const ClassListPage = 
+async ({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | undefined };
+}) => {
+  console.log(searchParams)
+  const {page, ...queryParams} = searchParams
+
+const role = await getRole()
 const columns = [
   {
     header: "Class Name",
@@ -30,12 +42,13 @@ const columns = [
     accessor: "supervisor",
     className: "hidden md:table-cell",
   },
-  {
+  ...(role === "admin" ? [{
     header: "Actions",
     accessor: "action",
-  },
+  }] : []),
 ];
- const renderRow = (item: ClassList) => (
+  const p = page ? parseInt(page) : 1;
+const renderRow = (item: ClassList) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
@@ -56,17 +69,6 @@ const columns = [
       </td>
     </tr>
   );
-const ClassListPage = 
-async ({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | undefined };
-}) => {
-  console.log(searchParams)
-  const {page, ...queryParams} = searchParams
-
-  const p = page ? parseInt(page) : 1;
-
   //url params condition
 
   const query: Prisma.ClassWhereInput = {}

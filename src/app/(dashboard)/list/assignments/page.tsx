@@ -2,10 +2,7 @@ import FormModal from "@/components/FormModal";
 import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
-import {
-  assignmentsData,
-  role,
-} from "@/lib/data";
+import { getRole, getUserId } from "@/lib/utils";
 import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
 import { Assignment, Class, Prisma, Subject, Teacher } from "@prisma/client";
@@ -19,31 +16,42 @@ type AssignmentList = Assignment & {
   }
 }
 
-const columns = [
-  {
-    header: "Subject Name",
-    accessor: "name",
-  },
-  {
-    header: "Class",
-    accessor: "class",
-  },
-  {
-    header: "Teacher",
-    accessor: "teacher",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Due Date",
-    accessor: "dueDate",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Actions",
-    accessor: "action",
-  },
-];
- const renderRow = (item: AssignmentList) => (
+
+ 
+const AssignmentListPage = async ({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | undefined };
+}) => {
+  console.log(searchParams)
+  const {page, ...queryParams} = searchParams
+const role = await getRole()
+  const p = page ? parseInt(page) : 1;
+  const columns = [
+    {
+      header: "Subject Name",
+      accessor: "name",
+    },
+    {
+      header: "Class",
+      accessor: "class",
+    },
+    {
+      header: "Teacher",
+      accessor: "teacher",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Due Date",
+      accessor: "dueDate",
+      className: "hidden md:table-cell",
+    },
+    ...(role === "admin" || role === "teacher" ? [{
+      header: "Actions",
+      accessor: "action",
+    }] : []),
+  ];
+const renderRow = (item: AssignmentList) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
@@ -64,44 +72,74 @@ const columns = [
       </td>
     </tr>
   );
-const AssignmentListPage = async ({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | undefined };
-}) => {
-  console.log(searchParams)
-  const {page, ...queryParams} = searchParams
-
-  const p = page ? parseInt(page) : 1;
-
   //url params condition
 
-  const query: Prisma.AssignmentWhereInput = {}
+  const query: Prisma.AssignmentWhereInput = {};
+  query.lesson = {};
 
   if(queryParams){
     for(const [key,value] of Object.entries(queryParams)){
       if(value != undefined){
       switch(key){
         case "classId":
-          query.lesson ={classId : parseInt(value)};
+          query.lesson.classId = parseInt(value);
         case "teacherId":
-          query.lesson = {teacherId:value};
+          query.lesson.teacherId=value;
           break;
           case "search":
-            query.lesson = {
-              subject: {
+            query.lesson.subject= {
                 name: {
                   contains:value,
                   mode: "insensitive"
                 }
               }
-            }
+            
             break;
             default:break;
       }
     }
     }
   }
+
+  //ROLE CONDITIONS
+  switch (role) {
+    case "admin":
+      
+      break;
+      case "teacher":
+        const userId = await getUserId();
+        if (userId) {
+          query.lesson.teacherId = userId!;
+        }
+        break;
+      case "student":
+        const studentId = await getUserId();
+        if (studentId) {
+          query.lesson.class = {
+            students: {
+              some: {
+                id: studentId!
+              }
+            }
+          };
+        }
+        break;
+        case "parent":
+        const parentId = await getUserId();
+        if (parentId) {
+          query.lesson.class = {
+            students: {
+              some: {
+                parentId: parentId
+              }
+            }
+          };
+        }
+        break;
+    default:
+      break;
+  }
+
 
   const [data, count] = await prisma.$transaction([
     prisma.assignment.findMany({

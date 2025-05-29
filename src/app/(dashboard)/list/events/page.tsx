@@ -5,10 +5,22 @@ import TableSearch from "@/components/TableSearch";
 import { eventsData, role } from "@/lib/data";
 import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
+import { getRole, getUserId } from "@/lib/utils";
 import { Class, Event, Prisma } from "@prisma/client";
 import Image from "next/image";
 
 type EventList = Event & {class:Class};
+
+
+
+const EventListPage = async ({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | undefined };
+}) => {
+  console.log(searchParams)
+  const {page, ...queryParams} = searchParams
+  const role = await getRole()
 
 const columns = [
   {
@@ -34,10 +46,10 @@ const columns = [
     accessor: "endTime",
     className: "hidden md:table-cell",
   },
-  {
+  ...(role === "admin"  ? [{
     header: "Actions",
     accessor: "action",
-  },
+  }] : []),
 ];
 const renderRow = (item: EventList) => (
     <tr
@@ -67,14 +79,6 @@ const renderRow = (item: EventList) => (
       </td>
     </tr>
   );
-const EventListPage = async ({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | undefined };
-}) => {
-  console.log(searchParams)
-  const {page, ...queryParams} = searchParams
-
   const p = page ? parseInt(page) : 1;
 
   //url params condition
@@ -87,10 +91,31 @@ const EventListPage = async ({
       switch(key){
         
           case "search":
-            query.title = {contains:value,mode:"insensitive"}
+            query.title = {contains:value,mode:"insensitive"};
+            break;
+            default:
+            break;
       }
     }
     }
+  }
+
+  //ROLE CONDITIONS
+
+  switch (role) {
+    case "admin":
+      
+      break;
+    case "teacher":
+      const teacherId = await getUserId();
+      if(teacherId){
+      query.OR = [{ classId:null}, 
+        {class:{lessons:{some:{teacherId:teacherId!}}}}]
+      }
+      break;
+  
+    default:
+      break;
   }
 
   const [data, count] = await prisma.$transaction([
